@@ -1,4 +1,9 @@
 import cv2 as cv
+import numpy as np
+
+mat = np.full([640, 480, 3], 255, dtype=np.uint8)
+cv.imshow("test", mat)
+
 import torch
 from pathlib import Path
 from model.faceDetector import S3FD

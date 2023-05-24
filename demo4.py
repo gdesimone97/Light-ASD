@@ -1,8 +1,13 @@
 import cv2 as cv
+import numpy as np
+
+mat = np.full([640, 480, 3], 255, dtype=np.uint8)
+cv.imshow("test", mat)
+cv.waitKey(10)
+
 from pathlib import Path
 import torch
 import torchvision
-from torchvision import transforms 
 from torchaudio.transforms import MFCC
 from model.faceDetector import S3FD
 from model.Model import ASD_Model
@@ -15,11 +20,13 @@ from loss import lossAV
 import torch.nn.functional as F
 import python_speech_features
 from scipy.io import wavfile
+from copy import deepcopy
+from PIL import Image
 
 import warnings
 warnings.filterwarnings("ignore")
 
-FPS = 25
+FPS = 30
 
 class MyLossAV(lossAV):
     def forward(self, x):
@@ -61,34 +68,28 @@ def tensor_video(video: torch.Tensor):
     print()
     return faces
 
-def pcm2float(sig, dtype='float32'):
-    """Convert PCM signal to floating point with a range from -1 to 1.
-    Use dtype='float32' for single precision.
-    Parameters
-    ----------
-    sig : array_like
-        Input array, must have integral type.
-    dtype : data type, optional
-        Desired (floating point) data type.
-    Returns
-    -------
-    numpy.ndarray
-        Normalized floating point data.
-    See Also
-    --------
-    float2pcm, dtype
-    """
-    sig = np.asarray(sig)
-    if sig.dtype.kind not in 'iu':
-        raise TypeError("'sig' must be an array of integers")
-    dtype = np.dtype(dtype)
-    if dtype.kind != 'f':
-        raise TypeError("'dtype' must be a floating point type")
-
-    i = np.iinfo(sig.dtype)
-    abs_max = 2 ** (i.bits - 1)
-    offset = i.min + abs_max
-    return (sig.astype(dtype) - offset) / abs_max
+def build_video(video: torch.Tensor, labels: torch.Tensor, audio: torch.Tensor):
+    video_full = video.detach().numpy().astype(np.uint8)
+    frames = []
+    assert video_full.shape[0] == labels.shape[0]
+    labels = labels.cpu().detach().numpy()
+    for i, j in zip(range(video_full.shape[0]), range(len(labels))):
+        frame = video_full[i]
+        frame = cv.cvtColor(frame, cv.COLOR_RGB2BGR)
+        bboxes = face_detector.detect_faces(frame)
+        for bbox in bboxes:
+            x, y, w, h, _ = bbox
+            color = (0, 255, 0) if labels[j] else (0, 0, 255)
+            frame = cv.rectangle(frame, [int(x), int(y)], [int(w), int(h)], color, thickness=2)
+            frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+            frame = torch.from_numpy(frame).unsqueeze(0)
+            frames.append(frame)
+            print("\r", i, end="")
+            
+    import torchvision
+    video_out = torch.cat(frames, dim=0)
+    #torchvision.io.write_video("out.mp4", video_out, fps=30, audio_array=audio, video_codec="libx264", audio_codec="mp3", audio_fps=48000)
+    torchvision.io.write_video("out.mp4", video_out, fps=30, video_codec="libx264")
     
 if __name__ == "__main__":
     print("Cuda available:", torch.cuda.is_available())
@@ -102,10 +103,15 @@ if __name__ == "__main__":
     #model.eval()
     s = asd.to("cuda")
     convert = torchvision.transforms.ToTensor()
-    video_audio = torchvision.io.read_video("test.avi")
-    video = video_audio[0]
+    video_audio = torchvision.io.read_video("test2.mp4")
+    del torchvision
+    video_org = video_audio[0]
+    video = deepcopy(video_org)
     print("video:", video.shape) #T,H,W,C
-    _, audio = wavfile.read("test.wav")
+    #_, audio = wavfile.read("test.wav")
+    audio = video_audio[1]
+    audio_org = deepcopy(audio)
+    audio = audio.T
     print("audio:", audio.shape)
     fps = video_audio[2]["video_fps"]
     print("fps:", fps)
@@ -117,5 +123,8 @@ if __name__ == "__main__":
     embedV = s.model.forward_visual_frontend(video)	
     out = s.model.forward_audio_visual_backend(embedA, embedV)
     x = s.lossAV.FC(out)
-    predLabel = torch.round(F.softmax(x, dim = -1))[:,1]
+    predLabel = torch.round(F.softmax(x, dim = -1))
+    predLabel = predLabel[:,1]
     print(predLabel)
+    print(predLabel.shape)
+    build_video(video_org, predLabel, audio_org)
