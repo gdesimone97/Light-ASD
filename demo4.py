@@ -68,7 +68,7 @@ def tensor_video(video: torch.Tensor):
     print()
     return faces
 
-def build_video(video: torch.Tensor, labels: torch.Tensor, audio: torch.Tensor):
+def build_video(video: torch.Tensor, labels: torch.Tensor, audio_input: torch.Tensor):
     video_full = video.detach().numpy().astype(np.uint8)
     frames = []
     assert video_full.shape[0] == labels.shape[0]
@@ -88,8 +88,8 @@ def build_video(video: torch.Tensor, labels: torch.Tensor, audio: torch.Tensor):
             
     import torchvision
     video_out = torch.cat(frames, dim=0)
-    #torchvision.io.write_video("out.mp4", video_out, fps=30, audio_array=audio, video_codec="libx264", audio_codec="mp3", audio_fps=48000)
-    torchvision.io.write_video("out.mp4", video_out, fps=30, video_codec="libx264")
+    torchvision.io.write_video("out.mp4", video_array=video_out, fps=30, audio_array=audio_input, video_codec="libx264", audio_codec="mp3", audio_fps=48000)
+    #torchvision.io.write_video("out.mp4", video_out, fps=30, video_codec="libx264")
     
 if __name__ == "__main__":
     print("Cuda available:", torch.cuda.is_available())
