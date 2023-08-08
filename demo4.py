@@ -22,6 +22,7 @@ import python_speech_features
 from scipy.io import wavfile
 from copy import deepcopy
 from PIL import Image
+from datetime import datetime
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -90,6 +91,10 @@ def build_video(video: torch.Tensor, labels: torch.Tensor, audio_input: torch.Te
     video_out = torch.cat(frames, dim=0)
     torchvision.io.write_video("out.mp4", video_array=video_out, fps=30, audio_array=audio_input, video_codec="libx264", audio_codec="mp3", audio_fps=48000)
     #torchvision.io.write_video("out.mp4", video_out, fps=30, video_codec="libx264")
+
+def post_processing(self, labels: torch.Tensor):
+    labels = labels.detach().numpy()
+    
     
 if __name__ == "__main__":
     print("Cuda available:", torch.cuda.is_available())
@@ -103,15 +108,20 @@ if __name__ == "__main__":
     #model.eval()
     s = asd.to("cuda")
     convert = torchvision.transforms.ToTensor()
-    video_audio = torchvision.io.read_video("test2.mp4")
+    video_audio = torchvision.io.read_video("test_side.mp4")
     del torchvision
     video_org = video_audio[0]
     video = deepcopy(video_org)
+    num_frames = video.shape[0]
     print("video:", video.shape) #T,H,W,C
     #_, audio = wavfile.read("test.wav")
     audio = video_audio[1]
     audio_org = deepcopy(audio)
-    audio = audio.T
+
+    #audio = np.zeros(audio.shape[1])
+    #audio = torch.from_numpy(audio).unsqueeze(0)
+
+    #audio = audio.T
     print("audio:", audio.shape)
     fps = video_audio[2]["video_fps"]
     print("fps:", fps)
@@ -119,12 +129,21 @@ if __name__ == "__main__":
     video = tensor_video(video)
     audio = torch.unsqueeze(audio, 0).cuda()
     video = torch.unsqueeze(video, 0).cuda()
+    start = datetime.now()
     embedA = s.model.forward_audio_frontend(audio)
     embedV = s.model.forward_visual_frontend(video)	
     out = s.model.forward_audio_visual_backend(embedA, embedV)
     x = s.lossAV.FC(out)
-    predLabel = torch.round(F.softmax(x, dim = -1))
-    predLabel = predLabel[:,1]
+    a = F.softmax(x, dim=-1)
+    
+    thresold = 0.55
+    res = torch.where(a[:, 1] >= thresold, 1, 0)
+    predLabel = res
+    
+    #predLabel = torch.round(F.softmax(x, dim = -1))
+    end = datetime.now()
+    #predLabel = predLabel[:,1]
     print(predLabel)
     print(predLabel.shape)
+    print("Time:", (end - start), "#frames:", num_frames)
     build_video(video_org, predLabel, audio_org)
