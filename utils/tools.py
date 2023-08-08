@@ -169,7 +169,7 @@ def extract_video_clips(args):
             j = 0
             for _, row in insData.iterrows():
                 imageFilename = os.path.join(insDir, str("%.2f"%row['frame_timestamp'])+'.jpg')
-                if Path(imageFilename):
+                if Path(imageFilename).exists():
                     print("{} exists".format(str(imageFilename)))
                     continue
                 V.set(cv2.CAP_PROP_POS_MSEC, row['frame_timestamp'] * 1e3)
