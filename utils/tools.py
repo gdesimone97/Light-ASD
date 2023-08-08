@@ -1,5 +1,6 @@
 import os, subprocess, glob, pandas, tqdm, cv2, numpy
 from scipy.io import wavfile
+from pathlib import Path
 
 def init_args(args):
     # The details for the following folders/files can be found in the annotation of the function 'preprocess_AVA' below
@@ -59,10 +60,10 @@ def preprocess_AVA(args):
     #     └── trainval
     # ```
 
-    download_csv(args) # Take 1 minute 
-    download_videos(args) # Take 6 hours
-    extract_audio(args) # Take 1 hour
-    extract_audio_clips(args) # Take 3 minutes
+    #download_csv(args) # Take 1 minute 
+    #download_videos(args) # Take 6 hours
+    #extract_audio(args) # Take 1 hour
+    #extract_audio_clips(args) # Take 3 minutes
     extract_video_clips(args) # Take about 2 days
 
 def download_csv(args): 
@@ -138,7 +139,8 @@ def extract_video_clips(args):
     # If you do not need the data for the test set, you can only deal with the train and val part. That will take 1 day.
     # This procession may have many warning info, you can just ignore it.
     dic = {'train':'trainval', 'val':'trainval', 'test':'test'}
-    for dataType in ['train', 'val', 'test']:
+    #for dataType in ['train', 'val', 'test']:
+    for dataType in ['test']:
         df = pandas.read_csv(os.path.join(args.trialPathAVA, '%s_orig.csv'%(dataType)))
         dfNeg = pandas.concat([df[df['label_id'] == 0], df[df['label_id'] == 2]])
         dfPos = df[df['label_id'] == 1]
@@ -167,6 +169,9 @@ def extract_video_clips(args):
             j = 0
             for _, row in insData.iterrows():
                 imageFilename = os.path.join(insDir, str("%.2f"%row['frame_timestamp'])+'.jpg')
+                if Path(imageFilename):
+                    print("{} exists".format(str(imageFilename)))
+                    continue
                 V.set(cv2.CAP_PROP_POS_MSEC, row['frame_timestamp'] * 1e3)
                 _, frame = V.read()
                 h = numpy.size(frame, 0)
